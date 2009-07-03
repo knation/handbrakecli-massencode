@@ -31,6 +31,7 @@ my $source;
 my $recursive;
 my $delete_dvd;
 my $encoding;
+my $quality;
 my $file_format;
 my $preset;
 my $hcli;
@@ -63,7 +64,7 @@ my $optstatus = GetOptions(
 
 Usage() if ($help);
 
-unless( $source and $encoding ) {
+unless( $source and $file_format ) {
 	print "\nMissing Required Parameter.";
 	Usage();
 }
@@ -88,15 +89,17 @@ TraverseDirectory($source);
 #----------------------------------------------------------------------
 
 sub Usage {
-	print "\n\n./dvdencode -i SOURCE -F FORMAT [OPTIONS]
+	print "\n\nUSAGE: ./dvdencode -i SOURCE -f FORMAT [OPTIONS]
 
   -i, --input <string>\tThe directory to search for DVD files.
   -f, --format <avi/mp4/ogm/mkv>\tThe output file format.
 	
+  --pause TIME\tThe time to pause encoding (HHMM).
+  --resume TIME\tThe time to resume encoding (HHMM).
   --hcli <string>\tThe location of Handbrake CLI (Default: ).
   -e, --encoder <string>\tThe encoding type to use.
   -q, --quality <decimal>\tThe quality (0.0 to 1.0). (Default 1.0).
-  --preset <string>\tThe preset to use. (Default: Film)
+  --preset <string>\tThe preset to use.
   -2, --two-pass\tEnable two-pass mode.
   -R\t\tRecursively go through each folder looking for DVDs.
   -D\t\tDelete the original DVD files upon successful encoding.
@@ -135,7 +138,7 @@ sub ContainsDVD {
 sub Encode {
 	my $dir = shift;
 
-	my $handbrake = ""
+	my $handbrake = "";
 
 	print "Encoding '$dir'\n\tHandbrake CLI: $handbrake";
 
@@ -143,7 +146,7 @@ sub Encode {
 		# TODO: Get all DVD files
 		my @dvd_files;
 
-		foreach (@dvdfiles) {
+		foreach (@dvd_files) {
 			unlink;
 		}
 	}
