@@ -8,35 +8,32 @@ Use the following parameters to configure the utility.
 
 = Details =
 
-USAGE: dvdencode.exe -i SOURCE -f FORMAT [OPTIONS]
+USAGE: dvdencode -i SOURCE -f FORMAT --params PARAMS [OPTIONS]
+
+Required-----------------------------------------------------------------
 
   _-i, --input PATH_      The directory to search for DVD files.
 
   _-f, --format TYPE_     The format of the output files. (avi,mp4,ogm,mkv)
 
-===Handbrake CLI Options===
+  _--params PARAMS_       Handbrake CLI command parameter/values to use
+                        (Surround in quotes).
 
-  _-e, --encoder TYPE_            The encoding type to use.
-                                (ffmpeg,xvid,x264,theora) (Default: ffmpeg).
-  _-q, --quality DECIMAL_         The quality (0.0 to 1.0). (Default 1.0).
-
-  _-2, --two-pass_                Enable two-pass mode.
-
-  _-C, --cpu_                     The number of CPUs to use (Default: autodetect).
-
-
-===Wrapper Options===
+Optional-----------------------------------------------------------------
 
   _-o, --output PATH_     The directory to save output files to
                         (Default: Location of DVD Files).
-  _--pause TIME_          The time to pause encoding (HHMM).
 
-  _--resume TIME_         The time to resume encoding (HHMM).
+  _--hcli FILE_           The location of Handbrake CLI
 
-  _--hcli FILE_           The location of Handbrake CLI.
                         (Default: C:\Program Files\Handbrake\HandBrakeCLI.exe).
+
   _-R_                    Recursively go through each folder looking for DVDs.
 
   _-D_                    Delete the original DVD files upon successful encoding.
 
-  _-h_                    Prints this usage information.
+  _-v, --verbose_         Enables verbose logging.
+
+  _-l, --log_             Logs all output to the specified file.
+
+  _-h, --help_            Prints this usage information.
