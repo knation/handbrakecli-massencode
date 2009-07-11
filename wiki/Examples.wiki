@@ -1,0 +1,21 @@
+#summary One-sentence summary of this page.
+#labels Example
+
+= Introduction =
+
+Demonstrates some example use cases.
+
+
+==Recursively encode all raw DVD files on a drive==
+
+*Drive containing DVD files*: M:\
+
+*Format to encode DVDs to*: avi
+
+*Check child folders*: Yes (_-R_)
+
+*Delete original files once encoded*: Yes (_-D_)
+
+*Output*: Save all files under M:\ regardless of child folder found in.
+
+*Run*: massencode.exe -i M:\ -f avi -o M:\ -R -D --params "<Other CLI Commands>" --verbose
