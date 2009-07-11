@@ -8,7 +8,7 @@ Use the following parameters to configure the utility.
 
 = Details =
 
-USAGE: dvdencode -i SOURCE -f FORMAT --params PARAMS \options\
+USAGE: massencode -i SOURCE -f FORMAT --params PARAMS \options\
 
 Required-----------------------------------------------------------------
 
@@ -16,8 +16,8 @@ Required-----------------------------------------------------------------
 
   _-f, --format TYPE_     The format of the output files. (avi,mp4,ogm,mkv)
 
-  _--params PARAMS_       Handbrake CLI command parameter/values to use
-                        (Surround in quotes).
+  _--params PARAMS_       Handbrake CLI command parameter/values to use,
+                          EXCLUDING -i, -o, -f (Surround in quotes).
 
 Optional-----------------------------------------------------------------
 
