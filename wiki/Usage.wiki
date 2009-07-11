@@ -8,7 +8,7 @@ Use the following parameters to configure the utility.
 
 = Details =
 
-USAGE: dvdencode -i SOURCE -f FORMAT --params PARAMS \[options\]
+USAGE: dvdencode -i SOURCE -f FORMAT --params PARAMS \options\
 
 Required-----------------------------------------------------------------
 
