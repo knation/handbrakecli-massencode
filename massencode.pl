@@ -1,15 +1,17 @@
 #!c:/perl/bin/perl.exe
 #
-# Recursively goes through files and encodes raw DVD files.
+# Recursively goes through directories and encodes media files.
 #
-# Version 0.1
+# Uses HandBrake <http://handbrake.fr> under the terms of the GPL General Public License.
+#
+# Version 0.1.01 BETA
 # Copyright (C) 2009. Kirk Morales, Invisoft, LLC (kirk@invisoft.com)
 #
 # Open-source project hosted at: http://code.google.com/p/handbrakecli-massencode/
 #
 # This program is free software; you can redistribute it and/or modify it under the terms 
 # of the GNU General Public License as published by the Free Software Foundation; 
-# either version 2 of the License, or any later version.
+# either version 3 of the License, or any later version.
 #
 # This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
 # without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
@@ -19,10 +21,10 @@
 # if not, write to the Free Software Foundation, Inc., 59 Temple Place, 
 # Suite 330, Boston, MA 02111-1307 USA
 #
-# TODO: (kmorales) Implement pause/resume in TraverseDirectory()
 # TODO: (kmorales) Add option for media search type (other than DVD)
 
 use Getopt::Long;
+use Time::Local;
 
 use strict;
 use warnings;
@@ -38,7 +40,6 @@ my $delete_dvd;
 my $hcli;
 my $file_format;
 my $pause;
-my $resume;
 my $params;
 my $verbose;
 my $log_file;
@@ -55,8 +56,8 @@ my $optstatus = GetOptions(
   'hcli=s'		=> \$hcli,
   'R'			=> \$recursive,
   'D'			=> \$delete_dvd,
+  'p=s'		=> \$pause,
   'pause=s'		=> \$pause,
-  'resume=s'	=> \$resume,
   'params=s'	=> \$params,
   'test'		=> \$test,
   'verbose'		=> \$verbose,
@@ -79,7 +80,12 @@ my $out_text;
 Usage() if ($help);
 
 my ($sec,$min,$hour) = (localtime(time))[0,1,2];
-Log("Mass Encode started at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec) . "\n\n");
+Log("\nMass Encode started at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec) . "\n\n");
+
+# Remove trailing slash for source
+while( $source =~ /[\\\/]$/ ) {
+	$source = substr $source, 0, length($source)-1;
+}
 
 # Check for required parameters.
 unless( $source and $file_format ) {
@@ -103,8 +109,8 @@ unless( $params ) {
 unless( $hcli ) {
 	my $os = $^O;
 	if( $os =~ /linux/ ) {
-		$hcli = '';
-	} else {
+		$hcli = './';
+	} elsif( $os =~ /win/ ) {
 		$hcli = 'C:\Program Files\HandBrake\HandBrakeCLI.exe';
 		$dir_sep = "\\";
 	}
@@ -120,13 +126,25 @@ unless( -e $hcli or $test ) {
 	print "\nHandbrake CLI not found at '$hcli'\n";
 }
 
+# Clear out output file if it exists
+if( $log_file and -e $log_file ) {
+	open(LOG, ">$log_file");
+	print LOG '';
+	close(LOG);
+}
+
+# Parse pause times
+my @pause_times = split( /\:/, $pause ) if( $pause );
+
+# Start looking for media
 TraverseDirectory($source);
 
+# Print end time
 ($sec,$min,$hour) = (localtime(time))[0,1,2];
 Log("Mass Encode ended at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec) . "\n\n");
 
 # Save log file
-WriteLog() if( $log_file );
+AppendLog() if( $log_file );
 
 
 
@@ -139,23 +157,29 @@ sub Usage {
 
 Required-----------------------------------------------------------------
 
-  -i, --input PATH\tThe directory to search for DVD files.
+  -i, --input PATH\tThe directory to search for media files. NO TRAILING \
   -f, --format TYPE\tThe format of the output files. (avi,mp4,ogm,mkv)
   --params PARAMS\tHandbrake CLI command parameter/values to use 
 			EXCLUDING -i, -o, -f. (Surround in quotes).
 
 Optional-----------------------------------------------------------------
 
-  -o, --output PATH\tThe directory to save output files to 
-			(Default: Location of DVD Files).
-  --hcli FILE\t\tThe location of Handbrake CLI 
-			(Default: C:\\Program Files\\Handbrake\\HandBrakeCLI.exe).
-  -R\t\t\tRecursively go through each folder looking for DVDs.
-  -D\t\t\tDelete the original DVD files upon successful encoding.
+  -o, --output PATH\tThe directory to save output files to. Will be overwritten 
+			if exists. (Default: Location of media file/DVD found).
+
+  --hcli FILE\t\tThe location of Handbrake CLI. Defaults:
+			Windows: C:\\Program Files\\Handbrake\\HandBrakeCLI.exe
+			Linux: Current working directory.
+
+  -R\t\t\tRecursively go through each folder looking for media.
+  -D\t\t\tDelete the original media file(s) upon successful encoding.
   -v, --verbose\t\tEnables verbose logging.
   -l, --log\t\tLogs all output to the specified file.
-  --pause TIME\t\tThe time to pause encoding (HHMM).
-  --resume TIME\t\tThe time to resume encoding (HHMM).
+  -p, --pause HHMM-HHMM\tThe time to pause encoding on a 24-hour scale. Separate ranges by a comma.
+
+  --test\t\tFunctions the same without actually encoding anything. Shows what 
+			all output and Handbrake CLI commands would look like.
+
   -h, --help\t\tPrints this usage information.\n";
 	exit;
 }
@@ -165,32 +189,96 @@ sub Log {
 	my ($text, $die) = @_;
 
 	print "$text";
-	$out_text .= $text;
+
+	if( $log_file ) {
+		$out_text .= $text;
+
+		# Get string size in bytes. If it exceeds 250Kb then append it to the output file.
+		my $size;
+		{
+			use bytes;
+			$size = length($out_text);
+		}
+		if( $size >= 256000 ) {
+			AppendLog();
+			$out_text = '';
+		}
+	}
 	
 	if( $die ) {
 		print "\n\nExecution stopped.\n";
-		WriteLog() if( $log_file );
+		AppendLog() if($log_file);
 		exit;
 	}
 }
 
 # Writes out the log file.
-sub WriteLog {
-	open(LOG, ">$log_file");
+sub AppendLog {
+	return unless($log_file);
+	open(LOG, ">>$log_file");
 	print LOG $out_text;
 	close(LOG);
+}
+
+# Converts seconds to hh:mm:ss
+sub convert_seconds_to_hhmmss {
+	my $hourz=int($_[0]/3600);
+	my $leftover=$_[0] % 3600;
+	my $minz=int($leftover/60);
+	my $secz=int($leftover % 60);
+  
+	return sprintf ("%02d:%02d:%02d", $hourz,$minz,$secz)
+ }
+
+# Checks the current time and pauses if need be.
+sub CheckPause {
+	my $cur_epoch = time();
+	my ($sec, $min, $hour, $day, $mon, $year) = (localtime($cur_epoch))[0,1,2,3,4,5];
+
+	my $cur_time = sprintf("%02d%02d", $hour, $min);
+
+	# see if the current time falls within a pause range
+	foreach my $timespan (@pause_times) {
+		my ($pause_start, $pause_end) = split( /\-/, $timespan );
+		if( $cur_time >= $pause_start and $cur_time <= $pause_end ) {
+
+			# We need to pause. Figure out how many seconds.
+			if( $pause_end =~ m/(\d\d)(\d\d)/ ) {
+				$hour = $1;
+				$min = $2;
+			} else {
+				Log("ERROR: End pause time not in correct format: '$pause_end'\n");
+			}
+
+			my $pause_end_epoch = timelocal(0,$min,$hour,$day,$mon,$year);
+			my $pause_sec = $pause_end_epoch - $cur_epoch;
+
+			Log("\nSleeping for " . convert_seconds_to_hhmmss($pause_sec) . " seconds until $hour:$min...\n\n");
+
+			# Force a log write in case something happens during sleep
+			AppendLog();
+			$out_text = '';
+
+			sleep($pause_sec);
+
+			last;
+		}
+	}
 }
 
 # Goes through each directory looking for files.
 sub TraverseDirectory {
   my $path = shift;
+  
+  # Check times. Pause if need be
+  CheckPause() if($pause);
 
   # append a trailing / if it's not there
-  $path .= $dir_sep if($path !~ /$dir_sep$/);
+  $path .= $dir_sep if($path !~ /($dir_sep)$/);
 
-  Log("\nChecking '$path' for DVD files...") if( $verbose );
+  Log("\nChecking '$path' for media files...") if( $verbose );
 
-  if( ContainsDVD($path) or $test ) {
+  if( ContainsDVD($path) ) {
 	  Log("\n");
 	  Encode($path);
   } else {
@@ -263,19 +351,21 @@ sub Encode {
 	($sec,$min,$hour) = (localtime(time))[0,1,2];
 	Log("\tEncoding '$dir'...Started at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec));
 	Log("\n\tCommand: $handbrake") if ($verbose);
-	my $cli_out = `$handbrake`;
-	Log("\n$cli_out") if($verbose);
+
+	my $cli_out = `$handbrake` unless($test);
+
+	Log("\n$cli_out") if($verbose and $cli_out);
 	($sec,$min,$hour) = (localtime(time))[0,1,2];
 	Log("\n\tFinished at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec) . "\n");
 
 	# If delete flag is set, delete original files
 	if( $delete_dvd ) {
-		Log("Deleting Original DVD Files...");
+		Log("Deleting Original File(s)...");
 		$dir .= $dir_sep; # add trailing slash back
 		# Delete all DVD files
 		my $dh;
-		unless( opendir $dh, $dir ) {
-			Log("Couldn't open dir '$dir' to delete DVD files: $!");
+		unless( opendir($dh, $dir) ) {
+			Log("Couldn't open dir '$dir' to delete media file(s): $!");
 			return 1;
 		}
 		my @dvd_files = readdir $dh;
