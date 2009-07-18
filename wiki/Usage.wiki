@@ -10,7 +10,7 @@ Use the following parameters to configure the utility.
 
 USAGE: massencode -i SOURCE -f FORMAT --params PARAMS \options\
 
-Required-----------------------------------------------------------------
+==Required==
 
   _-i, --input PATH_      The directory to search for DVD files.
 
@@ -19,7 +19,7 @@ Required-----------------------------------------------------------------
   _--params PARAMS_       Handbrake CLI command parameter/values to use,
                           EXCLUDING -i, -o, -f (Surround in quotes).
 
-Optional-----------------------------------------------------------------
+==Optional==
 
   _-o, --output PATH_     The directory to save output files to
                         (Default: Location of DVD Files).
@@ -31,6 +31,10 @@ Optional-----------------------------------------------------------------
   _-R_                    Recursively go through each folder looking for DVDs.
 
   _-D_                    Delete the original DVD files upon successful encoding.
+
+  _-p, --pause MMSS:MMSS  Pauses the script during the time frame specified. Accepts a  
+                          comma separated list of time frames for which to pause the
+                          script.
 
   _-v, --verbose_         Enables verbose logging.
 
