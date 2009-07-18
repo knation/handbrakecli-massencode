@@ -1,9 +1,9 @@
-#summary One-sentence summary of this page.
+#summary Demonstrates some example use cases.
 #labels Example
 
 = Introduction =
 
-Demonstrates some example use cases.
+Below are some typical use cases for massencode.
 
 
 ==Recursively encode all raw DVD files on a drive==
@@ -19,3 +19,9 @@ Demonstrates some example use cases.
 *Output*: Save all files under M:\ regardless of child folder found in.
 
 *Run*: massencode.exe -i M:\ -f avi -o M:\ -R -D --params "<Other CLI Commands>" --verbose
+
+==Same example as above, with pause==
+
+*Pause between 8-10a and 4-6p*
+
+*Run*: massencode.exe -i M:\ -f avi -o M:\ -R -D --params "<Other CLI Commands>" --verbose -p 0800:1000,1600:1800
