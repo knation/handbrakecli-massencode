@@ -34,7 +34,11 @@ USAGE: massencode -i SOURCE -f FORMAT --params PARAMS \options\
 
   _-p, --pause MMSS:MMSS  Pauses the script during the time frame specified. Accepts a  
                           comma separated list of time frames for which to pause the
-                          script.
+                          script. *NOTE:* Start and end times are assumed to be within
+                          the same day, so the end time must be a greater number than
+                          the start time. Also, this means that this script currently
+                          _does not_ support pausing between days (from 11p-1a the next
+                          morning, for example).
 
   _-v, --verbose_         Enables verbose logging.
 
