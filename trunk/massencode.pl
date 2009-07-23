@@ -4,7 +4,7 @@
 #
 # Uses HandBrake <http://handbrake.fr> under the terms of the GPL General Public License.
 #
-# Version 0.1.01 BETA
+# Version 0.1.03 BETA
 # Copyright (C) 2009. Kirk Morales, Invisoft, LLC (kirk@invisoft.com)
 #
 # Open-source project hosted at: http://code.google.com/p/handbrakecli-massencode/
@@ -22,6 +22,14 @@
 # Suite 330, Boston, MA 02111-1307 USA
 #
 # TODO: (kmorales) Add option for media search type (other than DVD)
+#
+# Last Changes:
+#	- Fixed bug with detecting Windows OS
+#	- Fixed typo in Usage
+#	- Fixed bug parsing pause times
+#	- Log is written for every 1MB of log information
+#	- If log's file handle isn't opened, retry 3 times
+# 
 
 use Getopt::Long;
 use Time::Local;
@@ -56,7 +64,7 @@ my $optstatus = GetOptions(
   'hcli=s'		=> \$hcli,
   'R'			=> \$recursive,
   'D'			=> \$delete_dvd,
-  'p=s'		=> \$pause,
+  'p=s'			=> \$pause,
   'pause=s'		=> \$pause,
   'params=s'	=> \$params,
   'test'		=> \$test,
@@ -108,9 +116,9 @@ unless( $params ) {
 # If no alternate location for handbrake, use the defaults.
 unless( $hcli ) {
 	my $os = $^O;
-	if( $os =~ /linux/ ) {
+	if( $os =~ /linux/i ) {
 		$hcli = './';
-	} elsif( $os =~ /win/ ) {
+	} elsif( $os =~ /win/i ) {
 		$hcli = 'C:\Program Files\HandBrake\HandBrakeCLI.exe';
 		$dir_sep = "\\";
 	}
@@ -134,7 +142,11 @@ if( $log_file and -e $log_file ) {
 }
 
 # Parse pause times
-my @pause_times = split( /\:/, $pause ) if( $pause );
+my @pause_times;
+if( $pause ) {
+	print "\nPause times specified.\n";
+	@pause_times = split( /\,/, $pause );
+}
 
 # Start looking for media
 TraverseDirectory($source);
@@ -145,8 +157,6 @@ Log("Mass Encode ended at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec) . "\n\n"
 
 # Save log file
 AppendLog() if( $log_file );
-
-
 
 #----------------------------------------------------------------------
 # Subroutines
@@ -175,7 +185,7 @@ Optional-----------------------------------------------------------------
   -D\t\t\tDelete the original media file(s) upon successful encoding.
   -v, --verbose\t\tEnables verbose logging.
   -l, --log\t\tLogs all output to the specified file.
-  -p, --pause HHMM-HHMM\tThe time to pause encoding on a 24-hour scale. Separate ranges by a comma.
+  -p, --pause HHMM:HHMM\tThe time to pause encoding on a 24-hour scale. Separate ranges by a comma.
 
   --test\t\tFunctions the same without actually encoding anything. Shows what 
 			all output and Handbrake CLI commands would look like.
@@ -215,9 +225,23 @@ sub Log {
 # Writes out the log file.
 sub AppendLog {
 	return unless($log_file);
-	open(LOG, ">>$log_file");
-	print LOG $out_text;
-	close(LOG);
+
+	my $retry = 3;
+	my $retry_count = 0;
+	my $rpt;
+	open($rpt, ">>$log_file");
+	while( !($rpt->opened()) and $retry_count < $retry ) {
+		print "Can't open file '$log_file' for writing..retrying...\n";
+		open($rpt, ">>$log_file");
+		$retry_count++;
+	}
+
+	if( $rpt->opened() ) {
+		print $rpt $out_text;
+		close($rpt);
+	} else {
+		print "Couldn't open file '$log_file' for writing. All attempts failed. Check permissions.\n";
+	}
 }
 
 # Converts seconds to hh:mm:ss
@@ -239,7 +263,9 @@ sub CheckPause {
 
 	# see if the current time falls within a pause range
 	foreach my $timespan (@pause_times) {
-		my ($pause_start, $pause_end) = split( /\-/, $timespan );
+		my ($pause_start, $pause_end) = split( /\:/, $timespan );
+		next unless($pause_start and $pause_end);
+
 		if( $cur_time >= $pause_start and $cur_time <= $pause_end ) {
 
 			# We need to pause. Figure out how many seconds.
