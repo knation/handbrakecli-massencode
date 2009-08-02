@@ -2,7 +2,7 @@
 #
 # Recursively goes through directories and encodes media files.
 #
-# Uses HandBrake <http://handbrake.fr> under the terms of the GPL General Public License.
+# Uses HandBrake <http://handbrake.fr> under the terms of the GNU General Public License.
 #
 # Version 0.1.03 BETA
 # Copyright (C) 2009. Kirk Morales, Invisoft, LLC (kirk@invisoft.com)
@@ -22,13 +22,6 @@
 # Suite 330, Boston, MA 02111-1307 USA
 #
 # TODO: (kmorales) Add option for media search type (other than DVD)
-#
-# Last Changes:
-#	- Fixed bug with detecting Windows OS
-#	- Fixed typo in Usage
-#	- Fixed bug parsing pause times
-#	- Log is written for every 1MB of log information
-#	- If log's file handle isn't opened, retry 3 times
 # 
 
 use Getopt::Long;
@@ -79,6 +72,7 @@ my $optstatus = GetOptions(
 my $dvd_extensions = "(bup)|(ifo)|(vob)";
 my $dir_sep = '/';
 my $out_text;
+my $encode_count = 0;
 
 
 #----------------------------------------------------------------------
@@ -120,12 +114,12 @@ unless( $hcli ) {
 		$hcli = './';
 	} elsif( $os =~ /win/i ) {
 		$hcli = 'C:\Program Files\HandBrake\HandBrakeCLI.exe';
-		$dir_sep = "\\";
+		$dir_sep = "\\\\";
 	}
 }
 
 # Format output directory
-if( $output and $output !~ /$dir_sep$/ ) {
+if( $output and $output !~ /($dir_sep)$/ ) {
 	$output .= $dir_sep; 
 }
 
@@ -230,18 +224,18 @@ sub AppendLog {
 	my $retry_count = 0;
 	my $rpt;
 	open($rpt, ">>$log_file");
-	while( !($rpt->opened()) and $retry_count < $retry ) {
-		print "Can't open file '$log_file' for writing..retrying...\n";
-		open($rpt, ">>$log_file");
-		$retry_count++;
-	}
+#	while( !($rpt->opened()) and $retry_count < $retry ) {
+#		print "Can't open file '$log_file' for writing..retrying...\n";
+#		open($rpt, ">>$log_file");
+#		$retry_count++;
+#	}
 
-	if( $rpt->opened() ) {
+	#if( $rpt->opened() ) {
 		print $rpt $out_text;
 		close($rpt);
-	} else {
-		print "Couldn't open file '$log_file' for writing. All attempts failed. Check permissions.\n";
-	}
+#	} else {
+#		print "Couldn't open file '$log_file' for writing. All attempts failed. Check permissions.\n";
+#	}
 }
 
 # Converts seconds to hh:mm:ss
@@ -346,8 +340,10 @@ sub Encode {
 
 	# Get current directory name (use for file name)
 	my $cur_dir;
-	if( $dir =~ m/[\\\/]([^\\\/]+)[\\\/]$/i ) {
+	if( $dir =~ m/[\\\/]+([^\\\/]+)[\\\/]*$/i ) {
 		$cur_dir = $1;
+	} else {
+		$cur_dir = "unknown_" . $encode_count;
 	}
 
 	# Create output file location
@@ -402,6 +398,7 @@ sub Encode {
 		}
 		Log("OK\n");
 	}
+	$encode_count++;
 
 	return 1;
 }
