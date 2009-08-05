@@ -4,7 +4,7 @@
 #
 # Uses HandBrake <http://handbrake.fr> under the terms of the GNU General Public License.
 #
-# Version 0.1.03 BETA
+# Version 0.1.04 BETA
 # Copyright (C) 2009. Kirk Morales, Invisoft, LLC (kirk@invisoft.com)
 #
 # Open-source project hosted at: http://code.google.com/p/handbrakecli-massencode/
@@ -26,6 +26,7 @@
 
 use Getopt::Long;
 use Time::Local;
+use File::Path;
 
 use strict;
 use warnings;
@@ -46,6 +47,7 @@ my $verbose;
 my $log_file;
 my $help;
 my $test;
+my $force_overwrite;
 
 my $optstatus = GetOptions(
   'f=s'			=> \$file_format,
@@ -65,6 +67,7 @@ my $optstatus = GetOptions(
   'v'			=> \$verbose,
   'log=s'		=> \$log_file,
   'l=s'			=> \$log_file,
+  'force'		=> \$force_overwrite,
   'help'		=> \$help,
   'h'			=> \$help
 );
@@ -138,7 +141,7 @@ if( $log_file and -e $log_file ) {
 # Parse pause times
 my @pause_times;
 if( $pause ) {
-	print "\nPause times specified.\n";
+	Log("\nPause times specified.\n");
 	@pause_times = split( /\,/, $pause );
 }
 
@@ -180,6 +183,7 @@ Optional-----------------------------------------------------------------
   -v, --verbose\t\tEnables verbose logging.
   -l, --log\t\tLogs all output to the specified file.
   -p, --pause HHMM:HHMM\tThe time to pause encoding on a 24-hour scale. Separate ranges by a comma.
+  --force\t\tIf the output file already exists, overwrite it.
 
   --test\t\tFunctions the same without actually encoding anything. Shows what 
 			all output and Handbrake CLI commands would look like.
@@ -346,6 +350,12 @@ sub Encode {
 		$cur_dir = "unknown_" . $encode_count;
 	}
 
+	# Check for illegal output directory
+	if( $cur_dir =~ /^\$/ ) {
+		Log("Illegal directory name: $cur_dir. Skipping.\n\n");
+		return;
+	}
+
 	# Create output file location
 	my $out_file;
 	if( $output ) {
@@ -359,6 +369,12 @@ sub Encode {
 	while( $dir =~ /[\\\/]$/ ) {
 		$dir = substr $dir, 0, length($dir)-1;
 	}
+
+	# See if out_file exists
+	if( -e $out_file and !$force_overwrite ) {
+		Log("$out_file already exists. Skipping.\n\n");
+		return;
+	}	
 
 	# Add quotes around paths if they have spaces
 	$dir = "\"$dir\"" if($dir =~ /\s/g);
@@ -397,6 +413,21 @@ sub Encode {
 			unlink "$dir$dvd_file" if ($dvd_file =~ /\.($dvd_extensions)$/i);
 		}
 		Log("OK\n");
+
+		# See if folder is empty
+		unless( opendir($dh, $dir) ) {
+			Log("Couldn't open dir '$dir' to check empty folder: $!");
+			return 1;
+		}
+		@dvd_files = readdir $dh;
+		closedir $dh;
+
+		# Will delete if empty
+		if( rmdir($dir) ) {
+			Log("$dir deleted.\n\n");
+		} else {
+			Log("$dir is not empty. Folder will not be deleted.\n\n");
+		}
 	}
 	$encode_count++;
 
