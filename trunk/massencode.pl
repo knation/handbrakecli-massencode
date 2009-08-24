@@ -4,7 +4,7 @@
 #
 # Uses HandBrake <http://handbrake.fr> under the terms of the GNU General Public License.
 #
-# Version 0.1.04 BETA
+# Version 0.1.06 BETA
 # Copyright (C) 2009. Kirk Morales, Invisoft, LLC (kirk@invisoft.com)
 #
 # Open-source project hosted at: http://code.google.com/p/handbrakecli-massencode/
@@ -21,7 +21,8 @@
 # if not, write to the Free Software Foundation, Inc., 59 Temple Place, 
 # Suite 330, Boston, MA 02111-1307 USA
 #
-# TODO: (kmorales) Add option for media search type (other than DVD)
+# TODO: (kmorales) Get rid of double slashes in file paths.
+#		(kmorales) Add option for media search type (other than DVD).
 # 
 
 use Getopt::Long;
@@ -48,6 +49,7 @@ my $log_file;
 my $help;
 my $test;
 my $force_overwrite;
+my $log_buffer = 256000;
 
 my $optstatus = GetOptions(
   'f=s'			=> \$file_format,
@@ -68,6 +70,7 @@ my $optstatus = GetOptions(
   'log=s'		=> \$log_file,
   'l=s'			=> \$log_file,
   'force'		=> \$force_overwrite,
+  'logbuffer=i'	=> \$log_buffer,
   'help'		=> \$help,
   'h'			=> \$help
 );
@@ -84,18 +87,15 @@ my $encode_count = 0;
 
 Usage() if ($help);
 
-my ($sec,$min,$hour) = (localtime(time))[0,1,2];
-Log("\nMass Encode started at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec) . "\n\n");
-
-# Remove trailing slash for source
-while( $source =~ /[\\\/]$/ ) {
-	$source = substr $source, 0, length($source)-1;
-}
-
 # Check for required parameters.
 unless( $source and $file_format ) {
 	print "\nMissing Required Parameter: ";
 	Usage();
+}
+
+# Remove trailing slash for source
+while( $source =~ /[\\\/]$/ ) {
+	$source = substr $source, 0, length($source)-1;
 }
 
 # Check that $file_format contains valid value
@@ -145,6 +145,10 @@ if( $pause ) {
 	@pause_times = split( /\,/, $pause );
 }
 
+# Show start time
+my ($sec,$min,$hour) = (localtime(time))[0,1,2];
+Log("\nMass Encode started at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec) . "\n\n");
+
 # Start looking for media
 TraverseDirectory($source);
 
@@ -165,8 +169,8 @@ sub Usage {
 Required-----------------------------------------------------------------
 
   -i, --input PATH\tThe directory to search for media files. NO TRAILING \
-  -f, --format TYPE\tThe format of the output files. (avi,mp4,ogm,mkv)
-  --params PARAMS\tHandbrake CLI command parameter/values to use 
+  -f, --format TYPE\tThe format of the output files. enum(avi,mp4,ogm,mkv)
+  --params \"PARAMS\"\tHandbrake CLI command parameter/values to use 
 			EXCLUDING -i, -o, -f. (Surround in quotes).
 
 Optional-----------------------------------------------------------------
@@ -185,6 +189,9 @@ Optional-----------------------------------------------------------------
   -p, --pause HHMM:HHMM\tThe time to pause encoding on a 24-hour scale. Separate ranges by a comma.
   --force\t\tIf the output file already exists, overwrite it.
 
+  --logbuffer BYTES\tThe number of bytes to keep in memory before writing to the log. 
+			Default: 256000. Exception: Log will always be written after encoding a file.
+
   --test\t\tFunctions the same without actually encoding anything. Shows what 
 			all output and Handbrake CLI commands would look like.
 
@@ -194,9 +201,9 @@ Optional-----------------------------------------------------------------
 
 # Appends output text.
 sub Log {
-	my ($text, $die) = @_;
+	my ($text, %options) = @_;
 
-	print "$text";
+	print $text;
 
 	if( $log_file ) {
 		$out_text .= $text;
@@ -207,39 +214,32 @@ sub Log {
 			use bytes;
 			$size = length($out_text);
 		}
-		if( $size >= 256000 ) {
+		if( $size >= $log_buffer ) {
 			AppendLog();
 			$out_text = '';
 		}
 	}
+
+	# Write to log if the log file exists and the force/die option is set
+	AppendLog() if($log_file and ($options{Force} or $options{Kill}));
 	
-	if( $die ) {
-		print "\n\nExecution stopped.\n";
-		AppendLog() if($log_file);
-		exit;
-	}
+	# Stop execution if the die option is set
+	die "\n\nErrors - Execution stopped.\n" if( $options{Kill} );
 }
 
 # Writes out the log file.
 sub AppendLog {
 	return unless($log_file);
 
-	my $retry = 3;
-	my $retry_count = 0;
 	my $rpt;
-	open($rpt, ">>$log_file");
-#	while( !($rpt->opened()) and $retry_count < $retry ) {
-#		print "Can't open file '$log_file' for writing..retrying...\n";
-#		open($rpt, ">>$log_file");
-#		$retry_count++;
-#	}
 
-	#if( $rpt->opened() ) {
+	# Write to log file only if the handle's been opened
+	if( open($rpt, ">>$log_file") ) {
 		print $rpt $out_text;
 		close($rpt);
-#	} else {
-#		print "Couldn't open file '$log_file' for writing. All attempts failed. Check permissions.\n";
-#	}
+	} else {
+		print "Couldn't open file '$log_file' for writing. All attempts failed. Check permissions.\n";
+	}
 }
 
 # Converts seconds to hh:mm:ss
@@ -271,7 +271,7 @@ sub CheckPause {
 				$hour = $1;
 				$min = $2;
 			} else {
-				Log("ERROR: End pause time not in correct format: '$pause_end'\n");
+				Log("WARNING: End pause time not in correct format: '$pause_end'. Pause range will not be applied.\n");
 			}
 
 			my $pause_end_epoch = timelocal(0,$min,$hour,$day,$mon,$year);
@@ -311,7 +311,7 @@ sub TraverseDirectory {
 
   # loop through the files contained in the directory
   if( $recursive ) {
-	  opendir my($dh), $path or Log("Couldn't open dir '$path': $!", 1);
+	  opendir my($dh), $path or Log("WARNING: Couldn't open dir '$path': $!");
 	  my @files = readdir $dh;
 	  closedir $dh;
 	  for my $eachFile (@files) {
@@ -326,7 +326,7 @@ sub TraverseDirectory {
 sub ContainsDVD {
 	my $dir = shift;
 
-	opendir my($dh), $dir or Log("Couldn't open dir '$dir': $!", 1);
+	opendir my($dh), $dir or Log("Couldn't open dir '$dir': $!", Kill => 1);
 	my @files = readdir $dh;
 	closedir $dh;
 
@@ -387,19 +387,20 @@ sub Encode {
 
 	# Execute Handbrake CLI command
 	($sec,$min,$hour) = (localtime(time))[0,1,2];
-	Log("\tEncoding '$dir'...Started at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec));
-	Log("\n\tCommand: $handbrake") if ($verbose);
+	Log("\nEncoding $dir...Started at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec));
+	Log("\n\tCommand: $handbrake");
 
 	my $cli_out = `$handbrake` unless($test);
 
 	Log("\n$cli_out") if($verbose and $cli_out);
-	($sec,$min,$hour) = (localtime(time))[0,1,2];
-	Log("\n\tFinished at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec) . "\n");
 
 	# If delete flag is set, delete original files
 	if( $delete_dvd ) {
+
 		Log("Deleting Original File(s)...");
+		$dir =~ s/\"//g; # remove quotes from directory name
 		$dir .= $dir_sep; # add trailing slash back
+
 		# Delete all DVD files
 		my $dh;
 		unless( opendir($dh, $dir) ) {
@@ -424,12 +425,15 @@ sub Encode {
 
 		# Will delete if empty
 		if( rmdir($dir) ) {
-			Log("$dir deleted.\n\n");
+			Log("$dir deleted.\n");
 		} else {
-			Log("$dir is not empty. Folder will not be deleted.\n\n");
+			Log("$dir is not empty. Folder will not be deleted.\n");
 		}
 	}
 	$encode_count++;
+	
+	($sec,$min,$hour) = (localtime(time))[0,1,2];
+	Log("\n\tFinished at " . sprintf("%02d:%02d:%02d",$hour,$min,$sec) . "\n", 'Force'=>1);
 
 	return 1;
 }
