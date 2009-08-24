@@ -32,7 +32,7 @@ USAGE: massencode -i SOURCE -f FORMAT --params PARAMS \options\
 
   _-D_                    Delete the original DVD files upon successful encoding.
 
-  _-p, --pause MMSS:MMSS  Pauses the script during the time frame specified. Accepts a  
+  _-p, --pause MMSS:MMSS_ Pauses the script during the time frame specified. Accepts a  
                           comma separated list of time frames for which to pause the
                           script. *NOTE:* Start and end times are assumed to be within
                           the same day, so the end time must be a greater number than
@@ -43,5 +43,14 @@ USAGE: massencode -i SOURCE -f FORMAT --params PARAMS \options\
   _-v, --verbose_         Enables verbose logging.
 
   _-l, --log_             Logs all output to the specified file.
+
+  _--force_               If the output file already exists, overwrite it.
+
+  _--logbuffer BYTES_     The number of bytes to keep in memory before writing to 
+                          the log. Default: 256000. Exception: Log will always be written
+                          after encoding a file.
+
+  _--test_                Functions the same without actually encoding anything. Shows
+                          what all output and Handbrake CLI commands would look like.
 
   _-h, --help_            Prints this usage information.
